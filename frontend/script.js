@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (response.ok) {
                 return response.blob();
             }
-            throw new Error("Something went wrong.");
+            throw new Error(`Error checking code. Status: ${response.status}`);
         })
         .then(blob => {
             const url = window.URL.createObjectURL(blob);
@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(error => {
             console.error("Error:", error);
-            alert("Error checking code.");
+            alert(`Error checking code: ${error.message}`);
         });
     });
 
@@ -70,17 +70,25 @@ document.addEventListener("DOMContentLoaded", () => {
             .then(response => response.json())
             .then(repos => {
                 repoList.innerHTML = "";
-                repos.forEach(repo => {
-                    const li = document.createElement("li");
-                    li.textContent = repo.full_name;
-                    li.style.cursor = "pointer";
-                    li.addEventListener("click", () => {
-                        const [owner, repoName] = repo.full_name.split("/");
-                        document.getElementById("current-repo").textContent = repo.full_name;
-                        loadFiles(owner, repoName, "");
+                if (Array.isArray(repos)) {
+                    repos.forEach(repo => {
+                        const li = document.createElement("li");
+                        li.textContent = repo.full_name;
+                        li.style.cursor = "pointer";
+                        li.className = "list-group-item"; // Add Bootstrap class
+                        li.addEventListener("click", () => {
+                            const [owner, repoName] = repo.full_name.split("/");
+                            document.getElementById("current-repo").textContent = repo.full_name;
+                            loadFiles(owner, repoName, "");
+                        });
+                        repoList.appendChild(li);
                     });
-                    repoList.appendChild(li);
-                });
+                } else {
+                     repoList.innerHTML = `<li class="list-group-item text-danger">Could not load repositories. Are you logged in?</li>`;
+                }
+            })
+            .catch(() => {
+                repoList.innerHTML = `<li class="list-group-item text-danger">Failed to fetch repositories.</li>`;
             });
     }
 
@@ -93,8 +101,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 fileList.innerHTML = "";
                 if (path !== "") {
                     const parentLi = document.createElement("li");
-                    parentLi.textContent = "../";
+                    parentLi.textContent = "⬅️ .. (Go up)";
                     parentLi.style.cursor = "pointer";
+                    parentLi.className = "list-group-item list-group-item-info";
                     parentLi.addEventListener("click", () => {
                         const parentPath = path.substring(0, path.lastIndexOf("/"));
                         loadFiles(owner, repo, parentPath);
@@ -102,23 +111,40 @@ document.addEventListener("DOMContentLoaded", () => {
                     fileList.appendChild(parentLi);
                 }
 
-                contents.forEach(item => {
-                    const li = document.createElement("li");
-                    li.textContent = item.name + (item.type === "dir" ? "/" : "");
-                    li.style.cursor = "pointer";
-                    li.addEventListener("click", () => {
-                        if (item.type === "dir") {
-                            loadFiles(owner, repo, item.path);
-                        } else {
-                            fetch(`/api/repos/${owner}/${repo}/contents/${item.path}`)
-                                .then(response => response.json())
-                                .then(data => {
-                                    codeInput.value = data.content;
-                                });
-                        }
+                if (Array.isArray(contents)) {
+                    contents.forEach(item => {
+                        const li = document.createElement("li");
+                        li.textContent = item.name + (item.type === "dir" ? " 📁" : " 📜");
+                        li.style.cursor = "pointer";
+                        li.className = "list-group-item";
+                        li.addEventListener("click", () => {
+                            if (item.type === "dir") {
+                                loadFiles(owner, repo, item.path);
+                            } else {
+                                fetch(`/api/repos/${owner}/${repo}/contents/${item.path}`)
+                                    .then(response => {
+                                        if (response.ok) {
+                                            return response.json();
+                                        }
+                                        throw new Error("Failed to get file content.");
+                                    })
+                                    .then(data => {
+                                        // Expects data = {"content": "..."}
+                                        codeInput.value = data.content;
+                                    })
+                                    .catch(error => {
+                                        alert(error.message);
+                                    });
+                            }
+                        });
+                        fileList.appendChild(li);
                     });
-                    fileList.appendChild(li);
-                });
+                } else {
+                    fileList.innerHTML = `<li class="list-group-item text-danger">No files or directory not found.</li>`;
+                }
+            })
+            .catch(() => {
+                fileList.innerHTML = `<li class="list-group-item text-danger">Failed to fetch contents.</li>`;
             });
     }
 });

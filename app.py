@@ -3,6 +3,7 @@ import requests
 import os
 import subprocess
 import tempfile
+import base64 # Added for base64 decoding
 
 app = Flask(__name__, static_folder='frontend', static_url_path='')
 
@@ -75,21 +76,29 @@ def check_code():
     if not code:
         return "No code provided.", 400
 
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp_file:
+    # Create a temporary file to hold the user's code
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py") as tmp_file:
         tmp_file.write(code)
         tmp_file_path = tmp_file.name
-    os.chmod(tmp_file_path, 0o755)
+    # os.chmod(tmp_file_path, 0o755) # Removed unnecessary chmod
 
     try:
+        # CORRECTED: Run simple_checker.py, passing it the command to execute (python3 {user's code file})
         process = subprocess.run(
-            ["python3", "simple_checker.py", tmp_file_path],
+            [
+                "python3", 
+                "simple_checker.py", 
+                "python3", 
+                tmp_file_path
+            ],
             capture_output=True,
             text=True,
             check=True
         )
         report = f"# Simple Checker Report\n\n## Output\n\n```\n{process.stdout}\n```"
     except subprocess.CalledProcessError as e:
-        report = f"# Simple Checker Report\n\n## Error\n\n```\n{e.stderr}\n```"
+        # Include both stdout and stderr on error
+        report = f"# Simple Checker Report\n\n## Error\n\n```\n{e.stderr}\n```\n\n## STDOUT (before error)\n\n```\n{e.stdout}\n```"
     finally:
         os.remove(tmp_file_path)
 
@@ -134,19 +143,36 @@ def get_repo_contents(owner, repo):
     contents = response.json()
     return jsonify(contents)
 
+# CORRECTED: Route to retrieve and decode base64 file content from GitHub
 @app.route("/api/repos/<owner>/<repo>/contents/<path:path>")
 def get_file_content(owner, repo, path):
     if "access_token" not in session:
         return jsonify({}), 401
 
-    headers = {"Authorization": f"token {session['access_token']}", "Accept": "application/vnd.github.v3.raw"}
+    # Remove raw content header to get the default JSON response
+    headers = {"Authorization": f"token {session['access_token']}"} 
     url = f"{GITHUB_API_URL}/repos/{owner}/{repo}/contents/{path}"
     response = requests.get(url, headers=headers)
 
     if response.status_code != 200:
         return jsonify({}), response.status_code
 
-    return jsonify({"content": response.text})
+    file_data = response.json()
+    
+    # Check if content exists and is base64 encoded
+    content = file_data.get('content')
+    encoding = file_data.get('encoding')
+    
+    if content and encoding == 'base64':
+        try:
+            # Decode the base64 content
+            decoded_content = base64.b64decode(content).decode('utf-8')
+            return jsonify({"content": decoded_content}) 
+        except Exception as e:
+            return jsonify({"content": f"Error decoding file content: {e}"}), 500
+    else:
+        return jsonify({"content": f"Could not retrieve base64 content for file at {path}"}), 400
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
