@@ -9,9 +9,11 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(data => {
             if (data.logged_in) {
                 userInfo.innerHTML = `
-                    <p>Logged in as: ${data.username}</p>
-                    <img src="${data.avatar_url}" alt="avatar" width="50" height="50">
-                    <button id="logout-button">Logout</button>
+                    <div class="d-flex align-items-center">
+                        <img src="${data.avatar_url}" alt="avatar" width="40" height="40" class="rounded-circle me-2">
+                        <span class="me-3">${data.username}</span>
+                        <button id="logout-button" class="btn btn-secondary">Logout</button>
+                    </div>
                 `;
                 repoBrowser.style.display = "block";
                 loadRepos();
@@ -21,7 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
 
             } else {
-                userInfo.innerHTML = '<a href="/login/github"><button>Login with GitHub</button></a>';
+                userInfo.innerHTML = '<a href="/login/github" class="btn btn-primary">Login with GitHub</a>';
             }
         });
 

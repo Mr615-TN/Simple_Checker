@@ -7,8 +7,8 @@ import tempfile
 app = Flask(__name__, static_folder='frontend', static_url_path='')
 
 # You will need to replace these with your actual GitHub OAuth App credentials
-GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "YOUR_CLIENT_ID")
-GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
+GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "YOUR_GITHUB_CLIENT_ID")
+GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "YOUR_GITHUB_CLIENT_SECRET")
 SECRET_KEY = os.environ.get("SECRET_KEY", "a_strong_secret_key")
 app.secret_key = SECRET_KEY
 
@@ -78,6 +78,7 @@ def check_code():
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp_file:
         tmp_file.write(code)
         tmp_file_path = tmp_file.name
+    os.chmod(tmp_file_path, 0o755)
 
     try:
         process = subprocess.run(
